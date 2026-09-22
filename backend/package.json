@@ -13,6 +13,8 @@
     "build": "node ace build",
     "dev": "node ace serve --hmr",
     "test": "node ace test",
+    "openapi:generate": "node ace openapi:generate",
+    "openapi:check": "node ace openapi:check",
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit"
@@ -37,6 +39,12 @@
     "#tests/*": "./tests/*.js",
     "#start/*": "./start/*.js",
     "#config/*": "./config/*.js"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "overrides": {
+    "jsonschema": "1.4.1"
   },
   "devDependencies": {
     "@adonisjs/assembler": "^8.4.0",
@@ -77,5 +85,8 @@
       "./app/middleware/*.ts"
     ]
   },
-  "prettier": "@adonisjs/prettier-config"
+  "prettier": "@adonisjs/prettier-config",
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
+  }
 }

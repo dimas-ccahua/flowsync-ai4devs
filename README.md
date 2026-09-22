@@ -4,6 +4,8 @@ Proyecto de práctica del curso: gestión de tareas en equipo. API en AdonisJS 7
 
 ## Empezar
 
+Hace falta **Node.js 24** (la LTS actual). El repo trae un `.nvmrc`, así que con [nvm](https://github.com/nvm-sh/nvm) basta con `nvm use` desde la raíz. Otras versiones no valen: `better-sqlite3` es un módulo nativo y se compila contra el ABI del Node con el que instalaste.
+
 ```bash
 git clone https://github.com/LIDR-academy/flowsync-ai4devs.git
 cd flowsync-ai4devs

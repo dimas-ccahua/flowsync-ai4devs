@@ -1,0 +1,86 @@
+# Revisor adversarial sobre cada cambio propuesto.
+#
+# Aplica los criterios de `.claude/agents/adversarial-reviewer.md` —el mismo
+# fichero de calibración que se usa en local— y deja los hallazgos como
+# comentarios en el propio PR, no enterrados en el log de la ejecución.
+#
+# Los pasos manuales que faltan para que esto funcione (el secreto, sobre todo)
+# y de dónde sale el gasto están en `docs/ci-revisor.md`.
+name: Revisor
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Lee el código y escribe en el PR. Nada más: no toca ramas ni releases.
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    name: Revisión adversarial
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Un PR abierto desde un fork no recibe los secretos del repositorio, así
+    # que el revisor no podría autenticarse. Se salta limpiamente en vez de
+    # dejar un check en rojo que no significa nada. Ver `docs/ci-revisor.md`.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Revisar el PR
+        uses: anthropics/claude-code-action@v1
+        with:
+          # Token de suscripción (`claude setup-token`). Si se usara una clave
+          # de API de la consola, la entrada sería `anthropic_api_key`: no son
+          # intercambiables. Ver `docs/ci-revisor.md`.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+          # Comentario de seguimiento en el PR con el progreso de la revisión.
+          track_progress: true
+
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Eres el revisor adversarial de este repositorio.
+
+            Empieza leyendo `REVIEW.md` de la raíz: es la calibración de las
+            revisiones de este repo y manda sobre cualquier criterio propio
+            que traigas. Dice qué cuenta como hallazgo grave aquí, cuántas
+            sugerencias caben, dónde no debes reportar y qué evidencia tienes
+            que citar. Tu objetivo es REFUTAR el cambio, no aprobarlo:
+            contrasta contra los scenarios de `openspec/specs/`.
+
+            Revisa solo lo que toca este PR. Publica cada hallazgo como un
+            comentario inline en la línea exacta, con
+            `mcp__github_inline_comment__create_inline_comment`, e incluye:
+            severidad (crítico / alto / medio), la evidencia (`fichero:línea`)
+            y el scenario o la regla que se rompe. No comentes una línea si no
+            tienes nada concreto que decir sobre ella, y no repitas en un
+            comentario general lo que ya has dicho inline.
+
+            No redirijas la salida a ficheros: nada de `>`, `>>` ni `tee`, y
+            no escribas un informe a disco para leerlo después. Lee la salida
+            directa, y escribe directo lo que tengas que decir: en los
+            comentarios del PR y en tu respuesta.
+
+            Tus herramientas son de solo lectura (Read, Grep, Glob): no edites
+            ficheros, no hagas commit y no ejecutes comandos.
+
+            Tienes 40 turnos. Gasta pocos en explorar: ve a los ficheros que el
+            PR cambia y prioriza los hallazgos por severidad.
+
+          claude_args: |
+            --model sonnet
+            --effort medium
+            --max-turns 40
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Grep,Glob"

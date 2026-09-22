@@ -21,10 +21,18 @@ cp .env.example .env && node ace generate:key   # solo la primera vez
 node ace migration:run                          # crea tmp/db.sqlite3 y regenera database/schema.ts
 npm run dev                                     # node ace serve --hmr
 npm test                                        # node ace test
+npm run openapi:generate                        # escribe el documento OpenAPI en docs/api/openapi.json
+npm run openapi:check                           # compara el versionado con el regenerado; sale 1 si difieren
 npm run lint                                    # eslint
 npm run format                                  # prettier --write
 npm run typecheck                               # tsc --noEmit
 ```
+
+`openapi:check` corre también en CI (`.github/workflows/openapi.yml`) en cada PR y en cada push a `main`, así que un contrato desactualizado tumba el pipeline.
+
+El proyecto corre sobre **Node 24** (`.nvmrc` en la raíz, `engines` en los dos `package.json`). No es una preferencia: `better-sqlite3` se compila contra el ABI del Node con el que se instaló, así que con otra versión el backend revienta con `NODE_MODULE_VERSION`. Si pasa, `npm rebuild better-sqlite3` desde `backend/` con el Node correcto activo.
+
+`package.json` fija `overrides: { "jsonschema": "1.4.1" }`. **No lo quites**: con `jsonschema@1.5.0` el validador de metadatos de `@adonisjs/ace` revienta con `Invalid URL` al escanear `commands/`, y eso tumba *cualquier* `node ace` (serve, test, migrations incluidos) en cuanto el proyecto tiene un comando propio. Es un bug de `resolveUrl` en 1.5.0, que resuelve la base a `/undefined` y luego no puede resolver el `$ref` de raíz del esquema.
 
 Tests (Japa). Dos suites declaradas en `adonisrc.ts`: `unit` (`tests/unit/**/*.spec.ts`, timeout 2s) y `functional` (`tests/functional/**/*.spec.ts`, timeout 30s). Hoy solo hay tests **functional de `auth`** (`tests/functional/auth/`): registro, login, sesión e iniciales. **`tests/unit/` no existe**, y la capability `tasks` no tiene ni un test.
 
@@ -131,4 +139,6 @@ La URL de la API sale de `VITE_API_URL` (ver `frontend/.env.example`); por defec
 - El commit sí es por petición: al cerrar cada una, usar la skill `/commit`.
 - Un cambio que toque rutas, controladores, validadores o transformers de una capability se cierra en el mismo commit con el documento OpenAPI y el README de esa capability al día. El documento se construye en cada petición y no hay fichero que generar, así que lo que se commitea es el diff regenerado de `.adonisjs/`; el README es `docs/capabilities/<nombre>/README.md`.
 - `gh pr create` (con una descripción completa de los cambios en el cuerpo del PR) y el pase del subagente `adversarial-reviewer` sobre ese PR van **una sola vez, al terminar la unidad de trabajo**, no al cerrar cada petición. El review adversarial es lo último, antes de dar la unidad por terminada.
+- Las revisiones —el subagente y el job de CI— se calibran con `REVIEW.md` de la raíz: qué es grave aquí, tope de tres sugerencias, dónde no reportar y evidencia con `fichero:línea`.
+- Al abrir el PR, CI lanza además el mismo revisor adversarial (`.github/workflows/revisor.yml`) y deja los hallazgos como comentarios inline. No sustituye al pase del subagente: corre en cada push a la rama del PR y con presupuesto acotado. Los pasos manuales y el coste están en `docs/ci-revisor.md`.
 - Cuando abras el PR, no repitas ese resumen en el chat: la sesión se va a perder, el PR no. Responde solo con la URL del PR.

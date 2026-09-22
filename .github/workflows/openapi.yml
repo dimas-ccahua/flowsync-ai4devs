@@ -1,0 +1,52 @@
+# El documento OpenAPI versionado tiene que describir la API de verdad.
+#
+# `openapi:check` regenera el documento a partir del router y lo compara con
+# `docs/api/openapi.json`; sale 1 si difieren. Aquí se corre sobre cada PR y
+# sobre cada push a `main` para que un cambio de rutas, controladores,
+# validadores o transformers no pueda entrar dejando el contrato atrás.
+name: OpenAPI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Solo lee el código: no comenta, no publica y no toca la rama.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: El contrato coincide con la API
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    # `start/env.ts` valida el entorno al arrancar la aplicación, y el comando
+    # la arranca para poder recorrer el router. Son valores de relleno: el
+    # comando no escucha en el puerto, no abre la base de datos y no cifra
+    # nada, así que APP_KEY no es un secreto ni tiene por qué serlo.
+    env:
+      NODE_ENV: test
+      PORT: 3333
+      HOST: localhost
+      LOG_LEVEL: info
+      APP_KEY: clave-de-relleno-solo-para-cifrar-nada-en-ci
+      APP_URL: http://localhost:3333
+      SESSION_DRIVER: memory
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # La versión sale del .nvmrc de la raíz, que es la misma fuente que usa
+      # cualquiera en local: si se sube la versión, CI la sigue sin tocar nada.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci
+
+      - run: npm run openapi:check
