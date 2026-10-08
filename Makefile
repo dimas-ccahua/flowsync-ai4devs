@@ -1,6 +1,6 @@
 # FlowSync — atajos de desarrollo.
 #
-# Requisitos: Node.js + npm y GNU Make.
+# Requisitos: Node.js + npm, GNU Make y Docker (con el plugin `docker compose`).
 #   - macOS:        make viene con las Command Line Tools de Xcode.
 #   - Linux / WSL:  sudo apt install make   (o el equivalente de tu distro)
 #
@@ -14,7 +14,8 @@ BACKEND  := backend
 FRONTEND := frontend
 
 .DEFAULT_GOAL := help
-.PHONY: help setup start install env migrate clean
+.PHONY: help setup start install env migrate clean \
+        db-up db-down migrate-dev migrate-test test
 
 # La ayuda se genera a partir de los comentarios `## ...` de cada target, para
 # que no haya un segundo listado que mantener a mano y que pueda divergir.
@@ -22,7 +23,7 @@ help: ## Muestra esta ayuda
 	@echo "FlowSync — targets disponibles:"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) \
-		| awk 'BEGIN { FS = ":.*## " }; { printf "  make %-8s %s\n", $$1, $$2 }'
+		| awk 'BEGIN { FS = ":.*## " }; { printf "  make %-13s %s\n", $$1, $$2 }'
 	@echo ""
 
 # ---------------------------------------------------------------------------
@@ -61,9 +62,43 @@ env:
 		cd $(BACKEND) && node ace generate:key; \
 	fi
 
-migrate:
-	@echo "🗃️  Ejecutando migraciones..."
+# ---------------------------------------------------------------------------
+# bases de datos (compose.yaml: `db` en el 54410, `db-test` en el 54411)
+# ---------------------------------------------------------------------------
+
+# `--wait` no devuelve el control hasta que el healthcheck del servicio pasa:
+# la imagen, la primera vez, inicializa la base y rechaza conexiones mientras
+# tanto. Todo lo que necesita una base la levanta así antes, de forma que
+# ningún target depende de que alguien haya hecho `make db-up` primero.
+COMPOSE_UP := docker compose up -d --wait
+
+db-up: ## Levanta las dos bases y espera a que estén sanas
+	@echo "🐘 Levantando db (54410) y db-test (54411)..."
+	@$(COMPOSE_UP) db db-test
+
+db-down: ## Para las dos bases (db conserva su volumen; db-test se pierde)
+	@echo "🐘 Parando las bases..."
+	@docker compose down
+
+migrate-dev: ## Migra la base de desarrollo (db)
+	@$(COMPOSE_UP) db
+	@echo "🗃️  Migrando la base de desarrollo..."
 	@cd $(BACKEND) && node ace migration:run
+
+# NODE_ENV=test hace que el framework cargue backend/.env.test, que apunta a
+# db-test. Es el mismo mecanismo que usa la batería de pruebas.
+migrate-test: ## Migra la base de pruebas (db-test)
+	@$(COMPOSE_UP) db-test
+	@echo "🗃️  Migrando la base de pruebas..."
+	@cd $(BACKEND) && NODE_ENV=test node ace migration:run
+
+migrate: migrate-dev migrate-test ## Migra las dos bases
+
+# db-test vive en memoria: tras cada arranque está vacía, así que se migra
+# siempre antes de correr la batería (si ya está migrada, no hace nada).
+test: migrate-test ## Corre la batería de pruebas del backend contra db-test
+	@echo "🧪 Corriendo la batería de pruebas del backend..."
+	@cd $(BACKEND) && npm test
 
 # ---------------------------------------------------------------------------
 # start
@@ -98,6 +133,7 @@ start: ## Levanta backend y frontend a la vez
 	@if [ ! -f $(BACKEND)/.env ]; then \
 		echo "❌ Falta $(BACKEND)/.env. Ejecuta primero: make setup"; exit 1; \
 	fi
+	@$(COMPOSE_UP) db
 	@echo "🚀 Arrancando backend (http://localhost:3333) y frontend (http://localhost:5173)..."
 	@echo "   Ctrl-C para parar los dos. Si uno se cae, el otro se cierra también."
 	@echo ""
@@ -112,8 +148,8 @@ start: ## Levanta backend y frontend a la vez
 # clean
 # ---------------------------------------------------------------------------
 
-clean: ## Borra node_modules y la base de datos SQLite
+clean: ## Borra node_modules y las bases (incluido el volumen de db)
 	@echo "🧹 Limpiando..."
 	@rm -rf $(BACKEND)/node_modules $(FRONTEND)/node_modules
-	@rm -f $(BACKEND)/tmp/db.sqlite3 $(BACKEND)/tmp/db.sqlite3-wal $(BACKEND)/tmp/db.sqlite3-shm
+	@docker compose down -v
 	@echo "✅ Listo. Vuelve a ejecutar: make setup"

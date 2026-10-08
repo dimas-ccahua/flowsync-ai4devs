@@ -1,0 +1,49 @@
+# FlowSync — bases de datos PostgreSQL para desarrollo y pruebas.
+#
+# Se levantan con `make db-up`; el Makefile usa `--wait` para no seguir hasta
+# que los healthchecks pasan. La imagen, la primera vez, inicializa la base y
+# no acepta conexiones mientras tanto: sin esa espera la primera migración
+# fallaría con «connection refused».
+#
+# El healthcheck va por TCP (`-h 127.0.0.1`) y no por el socket: durante la
+# inicialización el entrypoint levanta un servidor temporal que solo escucha en
+# el socket Unix, y un `pg_isready` sin host lo daría por sano antes de tiempo.
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: flowsync
+      POSTGRES_PASSWORD: flowsync
+      POSTGRES_DB: flowsync_dev
+    ports:
+      - '54410:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U flowsync -d flowsync_dev']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  db-test:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: flowsync
+      POSTGRES_PASSWORD: flowsync
+      POSTGRES_DB: flowsync_test
+    ports:
+      - '54411:5432'
+    # Efímera a propósito: los datos viven en memoria. El `tmpfs` no es
+    # decorativo: la imagen declara `VOLUME /var/lib/postgresql/data`, y sin él
+    # Docker crearía un volumen anónimo que sobreviviría entre ejecuciones.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U flowsync -d flowsync_test']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  db-data:
