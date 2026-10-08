@@ -6,8 +6,8 @@
 
 ## 2. Lo que la batería de pruebas no podía ver
 
-- La batería pasó en verde, pero no demostraba que `due_date` fuera un `date` nativo en ambas bases; lo comprobé consultando `information_schema.columns` en `flowsync_dev` y `flowsync_test`.
+- La batería pasó en verde porque ningún test cubre dueDate ni isOverdue; PostgreSQL entrega due_date mediante el driver pg como un objeto Date y Task.isOverdueOn lo compara con referenceDay, que es texto AAAA-MM-DD, haciendo que una tarea realmente vencida aparezca como no vencida.
 
 ## 3. Tu duda
 
-- Dudé de si cambiar SQLite por PostgreSQL alteraría la lógica de vencimiento; comprobé que `schema.ts` no cambió, PostgreSQL conserva `due_date` como `date` y las pruebas siguen pasando con la comparación de fechas `AAAA-MM-DD`.
+- Dudé de si el schema TypeScript y el typecheck demostraban que el cambio de motor conservaba la semántica; no la conservan: schema.ts sigue declarando dueDate como string, pero en ejecución PostgreSQL devuelve un Date.

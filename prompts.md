@@ -83,3 +83,28 @@ No des por terminada la tarea únicamente porque los tests estén verdes.
 ```
 
 **Qué salió:** (opcional, una línea) funcionó a la primera / tuve que insistir / me inventó una ruta que no existe.
+
+## Prompt 2
+
+**Modelo:** Opus 5.5 Medium
+**Herramienta:** Claude Code
+
+```
+Corrige únicamente HALLAZGOS.md y prompts.md con la evidencia de la regresión silenciosa encontrada después de migrar de SQLite a PostgreSQL.
+
+No corrijas la implementación ni modifiques código de producción, pruebas, configuración, migraciones o compose.yaml. El objetivo del ejercicio es documentar el fallo descubierto, no resolverlo.
+
+En HALLAZGOS.md conserva el punto 1 actual y sustituye solamente los puntos 2 y 3 por una sola línea cada uno:
+
+Punto 2:
+La batería pasó en verde porque ningún test cubre dueDate ni isOverdue; PostgreSQL entrega due_date mediante el driver pg como un objeto Date y Task.isOverdueOn lo compara con referenceDay, que es texto AAAA-MM-DD, haciendo que una tarea realmente vencida aparezca como no vencida.
+
+Punto 3:
+Dudé de si el schema TypeScript y el typecheck demostraban que el cambio de motor conservaba la semántica; no la conservan: schema.ts sigue declarando dueDate como string, pero en ejecución PostgreSQL devuelve un Date.
+
+Añade además este prompt completo como Prompt 2 en prompts.md, indicando:
+Modelo: Opus 5.5 Medium
+Herramienta: Claude Code
+
+No hagas commit. Al terminar, muestra git diff --check y git status -sb.
+```
