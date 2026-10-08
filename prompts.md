@@ -22,14 +22,64 @@ Borra el ejemplo de abajo cuando escribas el primero.
 
 ## Prompt 1
 
-**Modelo:** Opus 1M xHigh
+**Modelo:** Opus 5.5 Medium
 **Herramienta:** Claude Code
 
 ```
-Este es el ejemplo. Bórralo.
+Migra este proyecto de SQLite a PostgreSQL ejecutado en Docker.
 
-El prompt va aquí dentro, entero y con sus saltos de línea,
-para que se sepa dónde empieza y dónde acaba.
+Antes de modificar archivos:
+
+1. Lee CLAUDE.md y las instrucciones aplicables del repositorio.
+2. Inspecciona el Makefile, los archivos de entorno, la configuración de base de datos, las migraciones existentes y la configuración de pruebas.
+3. Ejecuta git status y no sobrescribas cambios previos del usuario.
+4. Explica brevemente qué archivos necesitarás modificar.
+
+Objetivo:
+
+Dejar el proyecto funcionando con dos bases PostgreSQL independientes: una para desarrollo y otra para pruebas.
+
+Restricciones obligatorias:
+
+- El archivo de Docker Compose debe llamarse compose.yaml.
+- Los servicios deben llamarse exactamente db y db-test.
+- Ambos deben utilizar la imagen pgvector/pgvector:pg17.
+- Desarrollo debe exponerse en el puerto 54410.
+- Pruebas debe exponerse en el puerto 54411.
+- La base de pruebas debe ser efímera y no debe tener volumen persistente.
+- Los dos servicios deben tener healthcheck.
+- Los comandos que dependan de las bases deben esperar hasta que sus servicios estén saludables.
+- No utilices la clave version: en compose.yaml.
+- La batería de pruebas debe apuntar exclusivamente a db-test mediante su propio archivo de entorno de pruebas, cargado automáticamente por el framework.
+- Añade al Makefile comandos claros para:
+  - levantar las bases;
+  - detenerlas;
+  - ejecutar las migraciones de desarrollo;
+  - ejecutar las migraciones de pruebas;
+  - migrar ambas bases;
+  - ejecutar la batería de pruebas.
+- No modifiques ninguna migración existente.
+- No cambies todavía la lógica de negocio para acomodar diferencias de tipos.
+- No ocultes errores de typecheck usando any, casts inseguros o desactivando comprobaciones.
+- No hagas cambios fuera del alcance de esta migración.
+
+Verificación obligatoria:
+
+1. Valida la sintaxis de compose.yaml.
+2. Levanta ambas bases desde cero.
+3. Comprueba que ambas estén saludables.
+4. Ejecuta las migraciones en ambas bases.
+5. Ejecuta la batería completa de pruebas del backend.
+6. Ejecuta npm run typecheck en backend, pero no corrijas automáticamente sus resultados: repórtalos.
+7. Confirma mediante git diff que ninguna migración existente fue modificada.
+8. Informa:
+   - archivos modificados;
+   - comandos ejecutados;
+   - resultado de las pruebas;
+   - resultado del typecheck;
+   - cualquier diferencia observada entre SQLite y PostgreSQL.
+
+No des por terminada la tarea únicamente porque los tests estén verdes.
 ```
 
 **Qué salió:** (opcional, una línea) funcionó a la primera / tuve que insistir / me inventó una ruta que no existe.
