@@ -158,7 +158,7 @@ TOKEN=$(curl -s -X POST http://localhost:3333/api/v1/auth/signup \
 # 1b. O el token de la cuenta de pruebas de Ana Pérez, que ya existe
 TOKEN=$(curl -s -X POST http://localhost:3333/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"ana.perez@example.com","password":"secreto123"}' \
+  -d '{"email":"ana.perez@gmail.com","password":"secreto123"}' \
   | python3 -c "import json,sys; print(json.load(sys.stdin)['data']['token'])")
 
 # 2. Crear una tarea — 201
