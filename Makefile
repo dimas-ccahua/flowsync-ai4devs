@@ -15,7 +15,7 @@ FRONTEND := frontend
 
 .DEFAULT_GOAL := help
 .PHONY: help setup start install env migrate clean \
-        db-up db-down migrate-dev migrate-test test
+        db-up db-down migrate-dev migrate-test test seed
 
 # La ayuda se genera a partir de los comentarios `## ...` de cada target, para
 # que no haya un segundo listado que mantener a mano y que pueda divergir.
@@ -99,6 +99,13 @@ migrate: migrate-dev migrate-test ## Migra las dos bases
 test: migrate-test ## Corre la batería de pruebas del backend contra db-test
 	@echo "🧪 Corriendo la batería de pruebas del backend..."
 	@cd $(BACKEND) && npm test
+
+# Migra antes porque sembrar una base sin tablas falla, y migrar una ya
+# migrada no hace nada. El seeder solo corre con NODE_ENV=development (el de
+# backend/.env) y no duplica nada si ya se lanzó.
+seed: migrate-dev ## Llena la base de desarrollo con datos inventados
+	@echo "🌱 Sembrando la base de desarrollo..."
+	@cd $(BACKEND) && node ace db:seed
 
 # ---------------------------------------------------------------------------
 # start
