@@ -1,5 +1,12 @@
 schema: spec-driven
 
+context: |
+  Convenciones de base de datos (única fuente, no se copian aquí): docs/convenciones/base-de-datos.md
+
+rules:
+  design:
+    - "Si el change toca el esquema, el design lleva una sección ## Reversibilidad: en qué rama cae cada migración, cuántas filas toca contado contra la base real, y cómo se vuelve atrás."
+
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
