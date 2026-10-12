@@ -1,4 +1,5 @@
 import Task from '#models/task'
+import db from '@adonisjs/lucid/services/db'
 import { setTaskDueDateValidator, toCalendarDay } from '#validators/task'
 import type { HttpContext } from '@adonisjs/core/http'
 import TaskDetailTransformer from '#transformers/task_detail_transformer'
@@ -43,7 +44,8 @@ export default class TaskDueDatesController {
   })
   @ApiResponse({
     status: 404,
-    description: 'No existe ninguna tarea con ese identificador. Se comprueba antes que el cuerpo.',
+    description:
+      'No existe ninguna tarea viva con ese identificador: una tarea en la papelera cuenta como inexistente. Se comprueba antes que el cuerpo.',
     type: () => ErrorResponse,
   })
   @ApiResponse({
@@ -53,13 +55,26 @@ export default class TaskDueDatesController {
     type: () => ValidationErrorResponse,
   })
   async update({ params, request, serialize }: HttpContext) {
-    const task = await Task.findOrFail(params.id)
+    // Primero si existe y después el cuerpo. Una tarea en la papelera no existe
+    // para esta consulta (`Task.excludeTrash`).
+    await Task.findOrFail(params.id)
     const { today, dueDate } = await request.validateUsing(setTaskDueDateValidator)
 
-    // El `DateTime` del validador se queda aquí: hacia dentro, una fecha de
-    // vencimiento es un día en texto y nunca un instante.
-    task.dueDate = dueDate === null ? null : toCalendarDay(dueDate)
-    await task.save()
+    // Fila bloqueada antes de guardar, por lo mismo que en el cambio de estado:
+    // que un borrado concurrente no deje cambiada la fecha de una tarea que ya
+    // está en la papelera.
+    const task = await db.transaction(async (trx) => {
+      const locked = await Task.query({ client: trx })
+        .where('id', params.id)
+        .forUpdate()
+        .firstOrFail()
+
+      // El `DateTime` del validador se queda aquí: hacia dentro, una fecha de
+      // vencimiento es un día en texto y nunca un instante.
+      locked.dueDate = dueDate === null ? null : toCalendarDay(dueDate)
+      await locked.save()
+      return locked
+    })
     await task.load('assignee')
 
     // Se devuelve ya resuelta contra el día de quien pide, para que aplazar una

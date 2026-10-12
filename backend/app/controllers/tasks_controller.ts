@@ -6,6 +6,7 @@ import {
   toCalendarDay,
 } from '#validators/task'
 import type { HttpContext } from '@adonisjs/core/http'
+import { errors as lucidErrors } from '@adonisjs/lucid'
 import TaskTransformer from '#transformers/task_transformer'
 import TaskDetailTransformer from '#transformers/task_detail_transformer'
 import {
@@ -115,7 +116,8 @@ export default class TasksController {
   })
   @ApiResponse({
     status: 404,
-    description: 'No existe ninguna tarea con ese identificador.',
+    description:
+      'No existe ninguna tarea viva con ese identificador: una tarea en la papelera cuenta como inexistente.',
     type: () => ErrorResponse,
   })
   @ApiResponse({
@@ -172,5 +174,45 @@ export default class TasksController {
     // `response.created()` deja la respuesta con el cuerpo vacío.
     response.status(201)
     return serialize(TaskTransformer.transform(task))
+  }
+
+  /**
+   * Borrar manda a la papelera, no destruye (RF-12 tras PA-2). Cualquier cuenta
+   * con sesión puede borrar cualquier tarea: los roles son planos.
+   *
+   * Es un `UPDATE` condicionado a que la tarea siga viva, y no un `find` seguido
+   * de un `save`: si dos personas borran la misma tarea a la vez, la segunda no
+   * encuentra nada que borrar y recibe un 404, sin carrera entre leer y
+   * escribir, y el instante del primer borrado no se pisa. No toca `updated_at`:
+   * mandar a la papelera no es cambiar la tarea.
+   */
+  @ApiOperation({
+    summary: 'Mandar una tarea a la papelera',
+    description:
+      'Cualquier cuenta con sesión manda a la papelera cualquier tarea, sea o no la responsable. La tarea desaparece para todo el equipo de la lista, de los filtros y de la consulta por identificador, y se puede devolver con `POST /tasks/{id}/restore`. No hay confirmación en la API: la pide la interfaz.',
+  })
+  @ApiResponse({ status: 204, description: 'La tarea ya está en la papelera. Sin cuerpo.' })
+  @ApiResponse({
+    status: 401,
+    description: 'Falta el token o no es válido. Nada cambia.',
+    type: () => ErrorResponse,
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'No hay ninguna tarea viva con ese identificador: no existe o ya está en la papelera. No es un fallo del sistema, y la que ya estaba en la papelera no cambia.',
+    type: () => ErrorResponse,
+  })
+  async destroy({ params, response }: HttpContext) {
+    const borradas = await Task.query()
+      .where('id', params.id)
+      .whereNull('deleted_at')
+      .update({ deleted_at: new Date() }, ['id'])
+
+    if (borradas.length === 0) {
+      throw new lucidErrors.E_ROW_NOT_FOUND(Task)
+    }
+
+    return response.noContent()
   }
 }

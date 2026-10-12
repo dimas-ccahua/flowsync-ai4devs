@@ -60,11 +60,29 @@ const routes = {
     tokens: [{"old":"/api/v1/tasks","type":0,"val":"api","end":""},{"old":"/api/v1/tasks","type":0,"val":"v1","end":""},{"old":"/api/v1/tasks","type":0,"val":"tasks","end":""}],
     types: placeholder as Registry['tasks.tasks.store']['types'],
   },
+  'tasks.task_trash.index': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/tasks/trash',
+    tokens: [{"old":"/api/v1/tasks/trash","type":0,"val":"api","end":""},{"old":"/api/v1/tasks/trash","type":0,"val":"v1","end":""},{"old":"/api/v1/tasks/trash","type":0,"val":"tasks","end":""},{"old":"/api/v1/tasks/trash","type":0,"val":"trash","end":""}],
+    types: placeholder as Registry['tasks.task_trash.index']['types'],
+  },
   'tasks.tasks.show': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/tasks/:id',
     tokens: [{"old":"/api/v1/tasks/:id","type":0,"val":"api","end":""},{"old":"/api/v1/tasks/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/tasks/:id","type":0,"val":"tasks","end":""},{"old":"/api/v1/tasks/:id","type":1,"val":"id","end":""}],
     types: placeholder as Registry['tasks.tasks.show']['types'],
+  },
+  'tasks.tasks.destroy': {
+    methods: ["DELETE"],
+    pattern: '/api/v1/tasks/:id',
+    tokens: [{"old":"/api/v1/tasks/:id","type":0,"val":"api","end":""},{"old":"/api/v1/tasks/:id","type":0,"val":"v1","end":""},{"old":"/api/v1/tasks/:id","type":0,"val":"tasks","end":""},{"old":"/api/v1/tasks/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['tasks.tasks.destroy']['types'],
+  },
+  'tasks.task_trash.restore': {
+    methods: ["POST"],
+    pattern: '/api/v1/tasks/:id/restore',
+    tokens: [{"old":"/api/v1/tasks/:id/restore","type":0,"val":"api","end":""},{"old":"/api/v1/tasks/:id/restore","type":0,"val":"v1","end":""},{"old":"/api/v1/tasks/:id/restore","type":0,"val":"tasks","end":""},{"old":"/api/v1/tasks/:id/restore","type":1,"val":"id","end":""},{"old":"/api/v1/tasks/:id/restore","type":0,"val":"restore","end":""}],
+    types: placeholder as Registry['tasks.task_trash.restore']['types'],
   },
   'tasks.task_statuses.update': {
     methods: ["PATCH"],

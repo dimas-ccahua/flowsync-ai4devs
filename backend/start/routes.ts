@@ -50,9 +50,20 @@ router
       .group(() => {
         router.get('/', [controllers.Tasks, 'index'])
         router.post('/', [controllers.Tasks, 'store'])
-        router.get(':id', [controllers.Tasks, 'show'])
-        router.patch(':id/status', [controllers.TaskStatuses, 'update'])
-        router.put(':id/due-date', [controllers.TaskDueDates, 'update'])
+        // La papelera antes que `:id`, y `:id` solo números: así `trash` nunca
+        // se lee como un identificador, se declaren en el orden que se declaren.
+        router.get('trash', [controllers.TaskTrash, 'index'])
+        router.get(':id', [controllers.Tasks, 'show']).where('id', router.matchers.number())
+        router.delete(':id', [controllers.Tasks, 'destroy']).where('id', router.matchers.number())
+        router
+          .post(':id/restore', [controllers.TaskTrash, 'restore'])
+          .where('id', router.matchers.number())
+        router
+          .patch(':id/status', [controllers.TaskStatuses, 'update'])
+          .where('id', router.matchers.number())
+        router
+          .put(':id/due-date', [controllers.TaskDueDates, 'update'])
+          .where('id', router.matchers.number())
       })
       .prefix('tasks')
       .as('tasks')

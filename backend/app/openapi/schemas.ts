@@ -115,6 +115,36 @@ export class TaskDetail {
 }
 
 /**
+ * Una tarea en la papelera (`TaskTrashTransformer`): quién la llevaba y cuándo
+ * se borró. No lleva fecha de vencimiento: eso se ve al restaurarla.
+ */
+export class TrashedTask {
+  @ApiProperty({ type: 'number', example: 1 })
+  id!: number
+
+  @ApiProperty({ type: 'string', maxLength: 200, example: 'Revisar el informe' })
+  title!: string
+
+  @ApiProperty({ enum: [...TASK_STATUSES], example: 'pending' })
+  status!: string
+
+  @ApiProperty({ type: () => TaskAssignee })
+  assignee!: TaskAssignee
+
+  @ApiProperty({
+    type: 'string',
+    format: 'date-time',
+    description: 'Instante en que la tarea entró en la papelera.',
+  })
+  deletedAt!: string
+}
+
+export class TrashedTaskListResponse {
+  @ApiProperty({ type: () => [TrashedTask] })
+  data!: TrashedTask[]
+}
+
+/**
  * El envoltorio `{ "data": ... }` que `providers/api_provider.ts` pone a toda
  * respuesta. Se documenta como parte de la forma porque el cliente lo tiene que
  * desenvolver.

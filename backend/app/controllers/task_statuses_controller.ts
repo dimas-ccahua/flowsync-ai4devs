@@ -1,4 +1,5 @@
 import Task from '#models/task'
+import db from '@adonisjs/lucid/services/db'
 import { updateTaskStatusValidator } from '#validators/task'
 import type { HttpContext } from '@adonisjs/core/http'
 import TaskTransformer from '#transformers/task_transformer'
@@ -41,7 +42,8 @@ export default class TaskStatusesController {
   })
   @ApiResponse({
     status: 404,
-    description: 'No existe ninguna tarea con ese identificador. Se comprueba antes que el cuerpo.',
+    description:
+      'No existe ninguna tarea viva con ese identificador: una tarea en la papelera cuenta como inexistente. Se comprueba antes que el cuerpo.',
     type: () => ErrorResponse,
   })
   @ApiResponse({
@@ -51,11 +53,24 @@ export default class TaskStatusesController {
     type: () => ValidationErrorResponse,
   })
   async update({ params, request, serialize }: HttpContext) {
-    const task = await Task.findOrFail(params.id)
+    // Primero si existe y después el cuerpo, como siempre. Una tarea en la
+    // papelera no existe para esta consulta (`Task.excludeTrash`).
+    await Task.findOrFail(params.id)
     const { status } = await request.validateUsing(updateTaskStatusValidator)
 
-    task.status = status
-    await task.save()
+    // Se relee con la fila bloqueada antes de guardar: sin el bloqueo, un
+    // borrado que entrase entre la lectura de arriba y el `save` dejaría
+    // cambiado el estado de una tarea que ya está en la papelera.
+    const task = await db.transaction(async (trx) => {
+      const locked = await Task.query({ client: trx })
+        .where('id', params.id)
+        .forUpdate()
+        .firstOrFail()
+
+      locked.status = status
+      await locked.save()
+      return locked
+    })
     await task.load('assignee')
 
     return serialize(TaskTransformer.transform(task))

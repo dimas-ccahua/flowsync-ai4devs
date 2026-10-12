@@ -1,7 +1,8 @@
 import User from '#models/user'
-import { belongsTo } from '@adonisjs/lucid/orm'
+import { beforeFetch, beforeFind, belongsTo } from '@adonisjs/lucid/orm'
 import { TaskSchema } from '#database/schema'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
+import type { ModelAdapterOptions, ModelQueryBuilderContract } from '@adonisjs/lucid/types/model'
 
 /**
  * Los tres estados que puede tener una tarea. No se añaden, ni se renombran,
@@ -24,9 +25,43 @@ export const DEFAULT_LIST_STATUSES = [
   'in_progress',
 ] as const satisfies readonly TaskStatus[]
 
+/**
+ * Las consultas que han pedido ver la papelera. Es un `WeakSet` de objetos de
+ * consulta, no un flag en el modelo: la marca vive lo que vive esa consulta y
+ * no se puede quedar puesta para la siguiente.
+ */
+const consultasDePapelera = new WeakSet<object>()
+
 export default class Task extends TaskSchema {
   @belongsTo(() => User, { foreignKey: 'assigneeId' })
   declare assignee: BelongsTo<typeof User>
+
+  /**
+   * Lo que está en la papelera no existe para ninguna consulta del modelo:
+   * `find`, `findOrFail`, `first` y cualquier `query()` llevan
+   * `deleted_at IS NULL` sin que el controlador lo pida. Así, la lista, los
+   * filtros, abrir una tarea y cambiarle el estado o la fecha la tratan como si
+   * no existiera, y una consulta nueva que se escriba mañana también.
+   *
+   * Lo que hay que pedir a propósito es lo contrario: ver la papelera, con
+   * `Task.inTrash()`. No cubre lo que salte el modelo (`db.from('tasks')`).
+   */
+  @beforeFind()
+  @beforeFetch()
+  static excludeTrash(query: ModelQueryBuilderContract<typeof Task>) {
+    if (!consultasDePapelera.has(query)) {
+      query.whereNull('deleted_at')
+    }
+  }
+
+  /**
+   * La única consulta que ve la papelera, y solo la papelera.
+   */
+  static inTrash(options?: ModelAdapterOptions) {
+    const query = this.query(options).whereNotNull('deleted_at')
+    consultasDePapelera.add(query)
+    return query
+  }
 
   /**
    * Si la tarea está vencida para quien mira desde `referenceDay`, un día del

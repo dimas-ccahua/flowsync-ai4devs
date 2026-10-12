@@ -246,6 +246,58 @@
           "data"
         ]
       },
+      "TrashedTaskListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrashedTask"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TrashedTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "Revisar el informe"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "done"
+            ],
+            "example": "pending"
+          },
+          "assignee": {
+            "$ref": "#/components/schemas/TaskAssignee"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante en que la tarea entró en la papelera."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "assignee",
+          "deletedAt"
+        ]
+      },
       "UpdateTaskStatusBody": {
         "type": "object",
         "properties": {
@@ -534,7 +586,7 @@
             }
           },
           "404": {
-            "description": "No existe ninguna tarea con ese identificador.",
+            "description": "No existe ninguna tarea viva con ese identificador: una tarea en la papelera cuenta como inexistente.",
             "content": {
               "application/json": {
                 "schema": {
@@ -580,6 +632,149 @@
             "bearer": []
           }
         ]
+      },
+      "delete": {
+        "summary": "Mandar una tarea a la papelera",
+        "description": "Cualquier cuenta con sesión manda a la papelera cualquier tarea, sea o no la responsable. La tarea desaparece para todo el equipo de la lista, de los filtros y de la consulta por identificador, y se puede devolver con `POST /tasks/{id}/restore`. No hay confirmación en la API: la pide la interfaz.",
+        "tags": [
+          "Tasks"
+        ],
+        "responses": {
+          "204": {
+            "description": "La tarea ya está en la papelera. Sin cuerpo.",
+            "content": {
+              "application/json": {}
+            }
+          },
+          "401": {
+            "description": "Falta el token o no es válido. Nada cambia.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No hay ninguna tarea viva con ese identificador: no existe o ya está en la papelera. No es un fallo del sistema, y la que ya estaba en la papelera no cambia.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tasks/trash": {
+      "get": {
+        "summary": "La papelera",
+        "description": "Todas las tareas en la papelera, para cualquier cuenta con sesión, de la borrada más recientemente a la más antigua. Cada una llega con su responsable y el instante en que se borró. Solo contiene tareas borradas.",
+        "tags": [
+          "TaskTrash"
+        ],
+        "responses": {
+          "200": {
+            "description": "La papelera entera, sin paginar. Vacía es una lista vacía.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrashedTaskListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el token o no es válido. No se devuelve ninguna tarea.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tasks/{id}/restore": {
+      "post": {
+        "summary": "Sacar una tarea de la papelera",
+        "description": "Cualquier cuenta con sesión devuelve a la lista una tarea de la papelera, con su título, estado, responsable y fecha de vencimiento intactos. Responde con la forma de lista, porque es a la lista adonde vuelve.",
+        "tags": [
+          "TaskTrash"
+        ],
+        "responses": {
+          "200": {
+            "description": "La tarea ya fuera de la papelera.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta el token o no es válido. Nada cambia.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No hay ninguna tarea con ese identificador en la papelera: no existe o está viva. Nada cambia.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/api/v1/tasks/{id}/status": {
@@ -611,7 +806,7 @@
             }
           },
           "404": {
-            "description": "No existe ninguna tarea con ese identificador. Se comprueba antes que el cuerpo.",
+            "description": "No existe ninguna tarea viva con ese identificador: una tarea en la papelera cuenta como inexistente. Se comprueba antes que el cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
@@ -686,7 +881,7 @@
             }
           },
           "404": {
-            "description": "No existe ninguna tarea con ese identificador. Se comprueba antes que el cuerpo.",
+            "description": "No existe ninguna tarea viva con ese identificador: una tarea en la papelera cuenta como inexistente. Se comprueba antes que el cuerpo.",
             "content": {
               "application/json": {
                 "schema": {

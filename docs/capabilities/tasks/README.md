@@ -24,11 +24,17 @@ de `POST /api/v1/auth/login` o de `POST /api/v1/auth/signup`.
 | `GET /tasks/:id` | `today=AAAA-MM-DD` en query, **obligatorio** | [`TasksController.show`](../../../backend/app/controllers/tasks_controller.ts) | `200` · la tarea con vencimiento |
 | `PATCH /tasks/:id/status` | `{ "status": "pending \| in_progress \| done" }` | [`TaskStatusesController.update`](../../../backend/app/controllers/task_statuses_controller.ts) | `200` · la tarea ya cambiada |
 | `PUT /tasks/:id/due-date` | `{ "dueDate": "AAAA-MM-DD" \| null, "today": "AAAA-MM-DD" }` | [`TaskDueDatesController.update`](../../../backend/app/controllers/task_due_dates_controller.ts) | `200` · la tarea con vencimiento |
+| `DELETE /tasks/:id` | — | [`TasksController.destroy`](../../../backend/app/controllers/tasks_controller.ts) | `204` · la tarea ya está en la papelera |
+| `GET /tasks/trash` | — | [`TaskTrashController.index`](../../../backend/app/controllers/task_trash_controller.ts) | `200` · la papelera |
+| `POST /tasks/:id/restore` | — | [`TaskTrashController.restore`](../../../backend/app/controllers/task_trash_controller.ts) | `200` · la tarea, de vuelta en la lista |
+
+`:id` solo admite números (`router.matchers.number()`), y la papelera se declara antes que `:id`: así
+`trash` nunca se lee como un identificador.
 
 Toda respuesta va envuelta en `{ "data": ... }` por el serializer de
 [`providers/api_provider.ts`](../../../backend/providers/api_provider.ts).
 
-### Dos formas de tarea, no una
+### Tres formas de tarea, no una
 
 Son objetos distintos a propósito, no el mismo con campos opcionales:
 
@@ -52,16 +58,26 @@ Son objetos distintos a propósito, no el mismo con campos opcionales:
     "assignee": { "id": 1, "fullName": "Ada Lovelace", "initials": "AL" } }
   ```
 
+- **Tarea en la papelera** — [`TaskTrashTransformer`](../../../backend/app/transformers/task_trash_transformer.ts).
+  La devuelve solo `GET /tasks/trash`: lo justo para reconocerla, quién la llevaba y cuándo se borró.
+  `deletedAt` no sale en ninguna otra forma. `POST /tasks/:id/restore` devuelve la forma de lista.
+
+  ```json
+  { "id": 1, "title": "Revisar el informe", "status": "pending",
+    "deletedAt": "...",
+    "assignee": { "id": 1, "fullName": "Ada Lovelace", "initials": "AL" } }
+  ```
+
 El `assignee` sale siempre por
 [`TaskAssigneeTransformer`](../../../backend/app/transformers/task_assignee_transformer.ts), que lo
 recorta a `id`, `fullName` e `initials` — nunca el email.
 
 ### El contrato, servido
 
-Las cinco operaciones están anotadas con los decoradores de `@foadonis/openapi` sobre los propios
+Las ocho operaciones están anotadas con los decoradores de `@foadonis/openapi` sobre los propios
 controladores, así que el documento servido en **`/api.json`** (y la interfaz en `/api`) lleva el
 parámetro `status` con sus tres valores, el `today` obligatorio, los cuerpos de las escrituras y los
-códigos `200`/`201`/`401`/`404`/`422` de cada operación, cada uno con la forma de lo que devuelve.
+códigos `200`/`201`/`204`/`401`/`404`/`422` de cada operación, cada uno con la forma de lo que devuelve.
 
 Las formas que se repiten viven en
 [`backend/app/openapi/schemas.ts`](../../../backend/app/openapi/schemas.ts) y se publican en
@@ -71,7 +87,10 @@ transformers: así el documento **no puede** enseñar el vencimiento en la lista
 
 Ese fichero es documentación, no validación: describe lo que los controladores ya hacen. Si cambia un
 transformer o un validador, se actualiza en el mismo commit. El documento se construye en cada
-petición y no hay fichero que generar; lo que se commitea es el diff de `.adonisjs/`.
+petición, y además se versiona en [`docs/api/openapi.json`](../../api/openapi.json): `npm run
+openapi:generate` lo reescribe y `npm run openapi:check` comprueba que no se ha quedado atrás. Se
+commitea junto con el diff de `.adonisjs/`. Esos dos comandos fallan con Node 24.20.0 por una
+dependencia transitiva de ace; con 24.18.0 funcionan.
 
 ## Reglas de negocio: dónde vive cada una
 
@@ -96,6 +115,24 @@ qué exige cada una, se abre el enlace de la derecha.
 | La lista no lleva vencimiento | Dos transformers separados, no uno con campos opcionales | [La lista no lleva el vencimiento](../../../openspec/specs/tasks/spec.md#requirement-la-lista-no-lleva-el-vencimiento) |
 | Acotar por estado | `listTasksValidator` y la rama de `TasksController.index` | [Acotar la lista por estado](../../../openspec/specs/tasks/spec.md#requirement-acotar-la-lista-por-estado) |
 | Filtro válido sin resultados ≠ filtro inválido | **Sin cumplir hoy.** `listTasksValidator` declara `status: vine.string().optional()`, no un `vine.enum`, así que un estado inventado no se rechaza: llega al `where` y sale como lista vacía, que es justo lo que el requisito prohíbe. El comentario de `TasksController.index` afirma lo contrario | [Un estado que no existe se rechaza, no se responde vacío](../../../openspec/specs/tasks/spec.md#requirement-un-estado-que-no-existe-se-rechaza-no-se-responde-vacío) |
+| Borrar manda a la papelera, sin permisos por responsable | `TasksController.destroy`: un `UPDATE` condicionado a `deleted_at IS NULL`, sin tocar `updated_at` | [Borrar una tarea la manda a la papelera](../../../openspec/changes/add-task-trash/specs/tasks/spec.md) |
+| La papelera | `Task.inTrash()` · `models/task.ts`, y `TaskTrashController.index` | [Consultar la papelera](../../../openspec/changes/add-task-trash/specs/tasks/spec.md) |
+| Restaurar intacta | `TaskTrashController.restore`: un `UPDATE` condicionado a `deleted_at IS NOT NULL`, sin tocar `updated_at` | [Restaurar una tarea de la papelera](../../../openspec/changes/add-task-trash/specs/tasks/spec.md) |
+| Lo borrado no sale por ningún otro camino | Hooks `beforeFind` y `beforeFetch` de `Task` (`Task.excludeTrash`): toda consulta del modelo lleva `deleted_at IS NULL`. **No cubre** lo que salte el modelo (`db.from('tasks')`, SQL a mano) | [Lo que está en la papelera no sale por ningún otro camino](../../../openspec/changes/add-task-trash/specs/tasks/spec.md) |
+| Un borrado concurrente no deja cambiados el estado o la fecha | `TaskStatusesController` y `TaskDueDatesController` releen la fila con `FOR UPDATE` en una transacción antes de guardar | [Lo que está en la papelera no sale por ningún otro camino](../../../openspec/changes/add-task-trash/specs/tasks/spec.md) |
+| Borrar dos veces | El `UPDATE` condicionado de `destroy`: si no toca ninguna fila, `404` | [Borrar dos veces no es un fallo del sistema](../../../openspec/changes/add-task-trash/specs/tasks/spec.md) |
+
+Los requisitos de la papelera viven todavía en el change
+[`openspec/changes/add-task-trash`](../../../openspec/changes/add-task-trash/), sin archivar; al
+archivarlo pasan a la spec viva y los enlaces de arriba deben apuntar allí.
+
+### Fuera de la papelera, por ahora
+
+- **Toda la interfaz** de E2-10, incluidos sus guardarraíles: la confirmación explícita (CA-4), que la
+  confirmación diga adónde va la tarea (CA-5), cancelar sin efecto (CA-6) y que borrar cueste más que
+  cambiar el estado (CA-7). Sin ellos la historia no está entregada, solo su API.
+- **Vaciar la papelera**, a mano o sola. Hoy lo que entra se queda.
+- **Quién borró** cada tarea: no se guarda.
 
 En el frontend, la capability vive en [`pages/tasks-page.tsx`](../../../frontend/src/pages/tasks-page.tsx),
 [`pages/task-page.tsx`](../../../frontend/src/pages/task-page.tsx),
@@ -112,7 +149,7 @@ empiezan por «La interfaz SHALL…».
 cd backend
 npm install
 cp .env.example .env && node ace generate:key   # solo la primera vez
-node ace migration:run                          # crea tmp/db.sqlite3
+node ace migration:run                          # migra la base de desarrollo (servicio db)
 ```
 
 ### Tests automáticos
@@ -125,18 +162,18 @@ node ace test --tests="el responsable llega con su nombre y sus iniciales"
 ```
 
 Los tests de esta capability están en
-[`backend/tests/functional/tasks/`](../../../backend/tests/functional/tasks/). **Hoy solo hay uno**,
-`assignee.spec.ts`, que cubre 3 de los 124 scenarios de la spec: los del requisito *Lo que cada tarea
-muestra de su responsable*. Todo lo demás está sin cubrir, así que el verde de la suite **no** es
-señal de que la capability cumpla su spec.
+[`backend/tests/functional/tasks/`](../../../backend/tests/functional/tasks/). Hay dos ficheros:
+`assignee.spec.ts`, con los 3 scenarios de *Lo que cada tarea muestra de su responsable*, y
+`trash.spec.ts`, con un test por cada scenario de la papelera que se puede comprobar por la API (16).
+El resto de la spec está sin cubrir, así que el verde de la suite **no** es señal de que la
+capability cumpla su spec.
 
 Dos cosas que hay que saber antes de escribir un test aquí:
 
-- La suite functional pega contra **el mismo fichero SQLite que el servidor de desarrollo**:
-  [`config/database.ts`](../../../backend/config/database.ts) declara una sola conexión sin override
-  por entorno. Aísla siempre con `testUtils.db().withGlobalTransaction()` en un `group.each.setup`,
-  como hacen los tests existentes. **No** uses truncate: se llevaría por delante los datos con los que
-  estés trabajando.
+- La suite functional pega contra **`db-test`** (puerto 54411, en memoria), no contra la base de
+  desarrollo: con `NODE_ENV=test` se carga `.env.test`, que la apunta allí. Está vacía tras cada
+  arranque, así que hay que migrarla antes (`make test` lo hace). Aísla igualmente con
+  `testUtils.db().withGlobalTransaction()` en un `group.each.setup`, como hacen los tests existentes.
 - Un test por scenario, citando el requisito en la cabecera del fichero. Es lo que permite leer la
   spec y saber qué falta.
 
@@ -178,8 +215,9 @@ curl -s -X PUT http://localhost:3333/api/v1/tasks/1/due-date \
   -d '{"dueDate":"2026-08-19","today":"2026-08-20"}'
 ```
 
-Ojo: esto **escribe en la base de datos de desarrollo**. Para dejarla como estaba, `node ace
-migration:fresh`.
+Ojo: esto **escribe en la base de datos de desarrollo**, y no hay atajo para dejarla como estaba:
+borrarla entera pierde todos sus datos, y el hook `sin-borrar-datos.sh` bloquea las órdenes que lo
+hacen (ver [convenciones de base de datos](../../convenciones/base-de-datos.md)).
 
 ### La interfaz
 
