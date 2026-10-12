@@ -51,6 +51,17 @@ export class TaskSchema extends BaseModel {
   declare updatedAt: DateTime | null
 }
 
+export class TasksStatusPrevioSchema extends BaseModel {
+  static $columns = ['statusNuevo', 'statusPrevio', 'taskId'] as const
+  $columns = TasksStatusPrevioSchema.$columns
+  @column()
+  declare statusNuevo: string
+  @column()
+  declare statusPrevio: string
+  @column({ isPrimary: true })
+  declare taskId: number
+}
+
 export class UserSchema extends BaseModel {
   static $columns = ['createdAt', 'email', 'fullName', 'id', 'password', 'updatedAt'] as const
   $columns = UserSchema.$columns
