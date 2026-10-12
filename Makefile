@@ -15,7 +15,7 @@ FRONTEND := frontend
 
 .DEFAULT_GOAL := help
 .PHONY: help setup start install env migrate clean \
-        db-up db-down migrate-dev migrate-test test seed db-readonly
+        db-up db-down migrate-dev migrate-test test seed db-readonly copia-produccion
 
 # La ayuda se genera a partir de los comentarios `## ...` de cada target, para
 # que no haya un segundo listado que mantener a mano y que pueda divergir.
@@ -119,6 +119,16 @@ db-readonly: ## Crea o actualiza el rol de solo lectura flowsync_ro en db
 	echo "🔒 Aplicando el rol de solo lectura en la base de desarrollo..." && \
 	docker compose exec -T db psql -q -U flowsync -d flowsync_dev -v ro_password="$$pw" \
 		< $(BACKEND)/database/readonly-role.sql
+
+# Carga una copia de producción SEUDONIMIZADA en la base de desarrollo,
+# SUSTITUYENDO lo que haya (INC-0412). La lanza una persona, nunca un agente: es
+# el único paso en que los datos personales están en claro. Todo el camino
+# (base intermedia cerrada a flowsync_ro, seudonimizar.sql, paso a desarrollo,
+# rol de solo lectura y borrado de la intermedia) está en el script.
+COPIA ?= backups/produccion-2026-10-02.dump
+
+copia-produccion: ## Carga seudonimizada la copia de producción (COPIA=...) en db
+	@$(BACKEND)/database/copia_produccion.sh "$(COPIA)"
 
 # ---------------------------------------------------------------------------
 # start

@@ -32,5 +32,11 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "deny": [
+      "Read(./backups/**)",
+      "Read(**/backups/**)"
+    ]
   }
 }
