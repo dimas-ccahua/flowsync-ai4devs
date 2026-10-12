@@ -9,6 +9,12 @@
             "statusMessage": "Revisando que no salgan datos personales ni secretos...",
             "timeout": 30,
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/datos-que-no-salen.sh"
+          },
+          {
+            "type": "command",
+            "statusMessage": "Revisando que la orden no borre datos ni esquema...",
+            "timeout": 10,
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/sin-borrar-datos.sh"
           }
         ]
       }
