@@ -3,6 +3,14 @@
     "atlassian": {
       "type": "http",
       "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+    },
+    "dbhub": {
+      "type": "stdio",
+      "command": "sh",
+      "args": [
+        "-c",
+        "DB_RO_PASSWORD=\"$(sed -n 's/^DB_RO_PASSWORD=//p' backend/.env 2>/dev/null)\"; [ -n \"$DB_RO_PASSWORD\" ] || { echo 'dbhub: falta DB_RO_PASSWORD en backend/.env (ver .env.example y make db-readonly)' >&2; exit 1; }; export DB_RO_PASSWORD; exec npx -y @bytebase/dbhub@1.4.0 --config backend/database/dbhub.toml"
+      ]
     }
   }
 }

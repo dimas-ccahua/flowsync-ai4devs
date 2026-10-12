@@ -1,0 +1,29 @@
+# DBHub (servidor MCP de PostgreSQL, @bytebase/dbhub@1.4.0), declarado en el
+# `.mcp.json` de la raíz: deja que un agente consulte el esquema y los datos
+# reales de la base de DESARROLLO en vez de deducirlos del código.
+#
+# Dos cerrojos independientes, y los dos hacen falta:
+#   - El rol `flowsync_ro` (`make db-readonly`) solo tiene SELECT: aunque el
+#     servidor dejara pasar una escritura, PostgreSQL la rechazaría.
+#   - `readonly = true` en `execute_sql`: DBHub rechaza lo que no sea lectura y
+#     ejecuta el resto dentro de `BEGIN READ ONLY`.
+#
+# La contraseña no se escribe aquí. DBHub sustituye `${DB_RO_PASSWORD}` desde el
+# entorno de su proceso, y el `.mcp.json` se la pasa leyéndola de backend/.env.
+
+[[sources]]
+id = "flowsync_dev"
+description = "Base de desarrollo de FlowSync (servicio `db` de compose.yaml), con el rol de solo lectura"
+type = "postgres"
+host = "127.0.0.1"
+port = 54410
+database = "flowsync_dev"
+user = "flowsync_ro"
+password = "${DB_RO_PASSWORD}"
+# El contenedor local no sirve TLS.
+sslmode = "disable"
+
+[[tools]]
+name = "execute_sql"
+source = "flowsync_dev"
+readonly = true
